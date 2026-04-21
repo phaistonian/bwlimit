@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tao::event::Event;
@@ -137,6 +137,14 @@ pub fn run() -> Result<()> {
         None,
     );
 
+    // Show Latency toggle
+    let show_latency_item = CheckMenuItem::new(
+        "Show Latency",
+        true,
+        init_state.show_latency,
+        None,
+    );
+
     // Network Activity section
     let net_header = MenuItem::new("Network Activity:", false, None);
     let latency_item = MenuItem::new("Latency: —", false, None);
@@ -153,6 +161,7 @@ pub fn run() -> Result<()> {
         &schedule_sub,
         &PredefinedMenuItem::separator(),
         &login_item,
+        &show_latency_item,
         &PredefinedMenuItem::separator(),
         &net_header,
         &latency_item,
@@ -221,7 +230,10 @@ pub fn run() -> Result<()> {
             let t0 = Instant::now();
 
             let (usage, total_up, total_down) = bw::get_top_uploaders();
-            let latency_ms = bw::ping_latency_ms();
+
+            // Only ping when the user has enabled latency display
+            let do_ping = state_poll.lock().unwrap().show_latency;
+            let latency_ms = if do_ping { bw::ping_latency_ms() } else { None };
 
             let _ = proxy_poll.send_event(UserEvent::Poll(PollResult {
                 usage,
@@ -255,8 +267,7 @@ pub fn run() -> Result<()> {
         }
     });
 
-    // ── Sparkline ring buffer ──────────────────────────────────────────────────
-    let mut upload_history: VecDeque<f64> = VecDeque::with_capacity(8);
+    // ── Sparkline ring buffer (removed) ───────────────────────────────────────
 
     // ── Event loop ────────────────────────────────────────────────────────────
     event_loop.run(move |event, _, control_flow| {
@@ -297,32 +308,29 @@ pub fn run() -> Result<()> {
 
             // ── Poll update ───────────────────────────────────────────────────
             Event::UserEvent(UserEvent::Poll(result)) => {
-                // Sparkline
-                if upload_history.len() == 8 {
-                    upload_history.pop_front();
-                }
-                upload_history.push_back(result.total_up);
-                let spark = sparkline(&upload_history);
-
-                // Tray title
+                // Tray title: just ↑/↓ rates
                 if result.total_up > 10.0 || result.total_down > 10.0 {
                     let title = format!(
-                        "↑{} ↓{} {}",
+                        "↑{} ↓{}",
                         fmt_short(result.total_up),
                         fmt_short(result.total_down),
-                        spark
                     );
                     let _ = tray.set_title(Some(title));
                 } else {
                     let _ = tray.set_title(None::<String>);
                 }
 
-                // Latency item
-                let lat_text = match result.latency_ms {
-                    Some(ms) => format!("Latency: {:.0}ms", ms),
-                    None => "Latency: —".to_string(),
-                };
-                latency_item.set_text(lat_text);
+                // Latency item (only shown/updated when enabled)
+                let show_lat = state.lock().unwrap().show_latency;
+                if show_lat {
+                    let lat_text = match result.latency_ms {
+                        Some(ms) => format!("Latency: {:.0}ms", ms),
+                        None => "Latency: —".to_string(),
+                    };
+                    latency_item.set_text(lat_text);
+                } else {
+                    latency_item.set_text("");
+                }
 
                 // Per-app rows
                 for i in 0..5 {
@@ -421,6 +429,19 @@ pub fn run() -> Result<()> {
                     return;
                 }
 
+                // Show Latency toggle
+                if id == show_latency_item.id() {
+                    let new_val = !show_latency_item.is_checked();
+                    show_latency_item.set_checked(new_val);
+                    if !new_val {
+                        latency_item.set_text("");
+                    }
+                    let mut s = state.lock().unwrap();
+                    s.show_latency = new_val;
+                    bw::save_state(&*s);
+                    return;
+                }
+
                 // Launch at Login
                 if id == login_item.id() {
                     let new_val = !login_item.is_checked();
@@ -480,23 +501,7 @@ fn schedule_label_text(sched: &Option<bw::Schedule>) -> String {
     }
 }
 
-fn sparkline(history: &VecDeque<f64>) -> String {
-    const BLOCKS: &[char] = &[' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-    if history.is_empty() {
-        return String::new();
-    }
-    let max = history.iter().cloned().fold(0.0f64, f64::max);
-    if max < 1_000.0 {
-        return String::new();
-    }
-    history
-        .iter()
-        .map(|&v| {
-            let idx = ((v / max) * 8.0).min(8.0) as usize;
-            BLOCKS[idx]
-        })
-        .collect()
-}
+
 
 fn fmt_short(bps: f64) -> String {
     if bps >= 1_000_000.0 {

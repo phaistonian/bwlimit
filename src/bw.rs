@@ -12,6 +12,7 @@ pub struct AppState {
     pub limit_down: u32,         // Mbit/s; 0 = unlimited
     pub interface: String,       // "" = all interfaces
     pub launch_at_login: bool,
+    pub show_latency: bool,
     pub schedule: Option<Schedule>,
 }
 
