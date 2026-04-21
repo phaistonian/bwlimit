@@ -1,0 +1,16 @@
+[package]
+name = "bwlimit"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+tao = "0.34.6"
+tray-icon = "0.21.3"
+tokio = { version = "1.0", features = ["rt", "process", "signal"] }
+image = "0.25"
+core-foundation = "0.10.1"
+objc2 = "0.6.3"
+objc2-app-kit = { version = "0.3.2", features = ["NSEvent", "block2"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
