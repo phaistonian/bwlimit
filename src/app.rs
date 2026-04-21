@@ -433,7 +433,10 @@ pub fn run() -> Result<()> {
                 if id == show_latency_item.id() {
                     let new_val = !show_latency_item.is_checked();
                     show_latency_item.set_checked(new_val);
-                    if !new_val {
+                    if new_val {
+                        // Give immediate feedback; actual value arrives on next poll
+                        latency_item.set_text("Latency: measuring…");
+                    } else {
                         latency_item.set_text("");
                     }
                     let mut s = state.lock().unwrap();
