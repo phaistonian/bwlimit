@@ -147,7 +147,7 @@ pub fn run() -> Result<()> {
 
     // Network Activity section
     let net_header = MenuItem::new("Network Activity:", false, None);
-    let latency_item = MenuItem::new("Latency: —", false, None);
+    let latency_item = MenuItem::new("Latency: —", true, None);
     let usage_items: Vec<MenuItem> = (0..5).map(|_| MenuItem::new("", false, None)).collect();
 
     // Quit
@@ -431,13 +431,14 @@ pub fn run() -> Result<()> {
 
                 // Show Latency toggle
                 if id == show_latency_item.id() {
-                    let new_val = !show_latency_item.is_checked();
+                    // Read from our own state — muda auto-toggles is_checked() on
+                    // click, so !is_checked() would invert twice and always be wrong.
+                    let new_val = !state.lock().unwrap().show_latency;
                     show_latency_item.set_checked(new_val);
                     if new_val {
-                        // Give immediate feedback; actual value arrives on next poll
                         latency_item.set_text("Latency: measuring…");
                     } else {
-                        latency_item.set_text("");
+                        latency_item.set_text("Latency: —");
                     }
                     let mut s = state.lock().unwrap();
                     s.show_latency = new_val;
@@ -447,7 +448,7 @@ pub fn run() -> Result<()> {
 
                 // Launch at Login
                 if id == login_item.id() {
-                    let new_val = !login_item.is_checked();
+                    let new_val = !state.lock().unwrap().launch_at_login;
                     bw::set_launch_at_login(new_val);
                     login_item.set_checked(new_val);
                     let mut s = state.lock().unwrap();
