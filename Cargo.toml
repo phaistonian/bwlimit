@@ -14,3 +14,5 @@ objc2 = "0.6.3"
 objc2-app-kit = { version = "0.3.2", features = ["NSEvent", "block2"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
